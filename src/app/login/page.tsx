@@ -315,7 +315,7 @@ function LoginForm() {
         {/* Quick Demo Login Cards for Evaluators */}
         <div className="p-3 bg-brand/5 border border-brand/20 rounded-xl space-y-2">
           <p className="text-[10px] font-extrabold text-brand uppercase tracking-wider text-center">
-            🚀 1-Click Evaluator Demo Access
+            EVALUATOR DEMO ACCESS
           </p>
           <div className="grid grid-cols-3 gap-1.5 text-[10px] font-semibold">
             <button

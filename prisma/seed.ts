@@ -61,13 +61,44 @@ async function main() {
     create: {
       id: IDS.adminUser,
       username: "admin",
-      // bcrypt hash of 'admin123' â€” CHANGE IN PRODUCTION
+      // bcrypt hash of 'admin123' — CHANGE IN PRODUCTION
       passwordHash: "$2b$12$DU5FAHlRVNZKjgRSD5RBTu6dFt/dfB4jacrGYOzC5ubvnjiqz4u/6",
       name: "Director Admin",
       role: Role.DIRECTOR,
       accessUnits: ["hindi", "english", "college", "hostel", "transport"],
     },
   });
+
+  const demoAccounts = [
+    {
+      username: "director_demo",
+      name: "Director Demo",
+      role: Role.DIRECTOR,
+      accessUnits: ["hindi", "english", "college", "hostel", "transport"],
+      passwordHash: "$2b$12$DU5FAHlRVNZKjgRSD5RBTu6dFt/dfB4jacrGYOzC5ubvnjiqz4u/6",
+    },
+    {
+      username: "principal_demo",
+      name: "Principal Demo",
+      role: Role.PRINCIPAL,
+      accessUnits: ["hindi", "english"],
+      passwordHash: "$2b$12$DU5FAHlRVNZKjgRSD5RBTu6dFt/dfB4jacrGYOzC5ubvnjiqz4u/6",
+    },
+    {
+      username: "hostel_head_demo",
+      name: "Hostel Head Demo",
+      role: Role.DEPARTMENT_HEAD,
+      accessUnits: ["hostel"],
+      passwordHash: "$2b$12$DU5FAHlRVNZKjgRSD5RBTu6dFt/dfB4jacrGYOzC5ubvnjiqz4u/6",
+    },
+  ];
+
+  for (const acc of demoAccounts) {
+    const existing = await prisma.user.findFirst({ where: { username: acc.username } });
+    if (!existing) {
+      await prisma.user.create({ data: acc });
+    }
+  }
   console.log("  âœ… Admin user (director)");
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
