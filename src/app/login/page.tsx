@@ -271,7 +271,7 @@ function LoginForm() {
       if (res.ok && data.success) {
         localStorage.setItem('user_id', data.user.id);
         localStorage.setItem('user_role', data.user.role);
-        router.push(redirectFrom || '/dashboard');
+        window.location.href = redirectFrom || '/dashboard';
       } else {
         setError(data.error || 'Quick demo login failed.');
       }

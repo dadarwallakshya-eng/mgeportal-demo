@@ -47,7 +47,7 @@ export function setSession(response: NextResponse, token: string): NextResponse 
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: IS_PRODUCTION,
-    sameSite: IS_PRODUCTION ? 'strict' : 'lax',
+    sameSite: 'lax',
     path: '/',
     maxAge: MAX_AGE,
   });
