@@ -1,0 +1,300 @@
+Line 338: {activeTab === 'overview' && !isEditingProfile && userRole !== 'DATA_ENTRY' && (
+  339: <Button
+  340: onClick={() => { setIsEditingProfile(true); }}
+  341: className="bg-brand hover:bg-[#4a2090] text-white font-semibold text-xs h-8 px-3 rounded-lg cursor-pointer gap-1.5"
+  342: >
+  343: <Pencil size={12} /> Edit Profile
+  344: </Button>
+  345: )}
+  346: 
+  347: {/* Stepper Tabs */}
+  348: <div className="flex border border-beige rounded-lg p-0.5 bg-field">
+  349: {(['overview', 'fees', 'hostel'] as const)
+  350: .filter((tab) => tab === 'overview' || userRole !== 'DATA_ENTRY')
+  351: .map((tab) => (
+  352: <button
+  353: key={tab}
+  354: onClick={() => { setActiveTab(tab); setIsEditingProfile(false); }}
+  355: className={`px-4 py-1.5 rounded-md text-xs font-semibold capitalize transition-all cursor-pointer ${
+  356: activeTab === tab
+  357: ? 'bg-brand text-white font-bold'
+  358: : 'text-mute hover:text-ink'
+  359: }`}
+  360: >
+  361: {tab}
+  362: </button>
+  363: ))}
+  364: </div>
+  365: </div>
+  366: </CardContent>
+  367: </Card>
+  368: 
+  369: {/* ── Active Tab Details Content ─────────────────────────────────── */}
+  370: <div className="grid grid-cols-1 gap-6">
+  371: {/* TAB 1: Overview — read-only cards, OR the edit form */}
+  372: {activeTab === 'overview' && isEditingProfile && (
+  373: <ProfileEditForm
+  374: student={student}
+  375: onCancel={() => setIsEditingProfile(false)}
+  376: onSaved={async () => { setIsEditingProfile(false); await loadStudentDetails(); }}
+  377: />
+  378: )}
+  379: {activeTab === 'overview' && !isEditingProfile && (
+  380: <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  381: {/* Demographics Card */}
+  382: <Card className="border-beige bg-paper text-ink shadow-md">
+  383: <CardHeader>
+  384: <CardTitle className="text-sm font-bold uppercase tracking-wider text-mute">
+  385: Demographic Profile
+  386: </CardTitle>
+  387: </CardHeader>
+  388: <CardContent className="space-y-4 text-xs">
+  389: <div className="flex justify-between items-center py-2 border-b border-beige">
+  390: <span className="text-mute flex items-center gap-1.5"><User size={14} /> Gender</span>
+  391: <span className="font-semibold text-ink capitalize">{student.gender.toLowerCase()}</span>
+  392: </div>
+  393: <div className="flex justify-between items-center py-2 border-b border-beige">
+  394: <span className="text-mute flex items-center gap-1.5"><Calendar size={14} /> Date of Birth</span>
+  395: <span className="font-semibold text-ink">
+  396: {new Date(student.dob).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+  397: </span>
+  398: </div>
+  399: <div className="flex justify-between items-center py-2 border-b border-beige">
+  400: <span className="text-mute flex items-center gap-1.5"><Building2 size={14} /> Category</span>
+  401: <span className="font-semibold text-ink">{student.category}</span>
+  402: </div>
+  403: <div className="flex justify-between items-center py-2 border-b border-beige">
+  404: <span className="text-mute flex items-center gap-1.5"><Calendar size={14} /> Admission Date</span>
+  405: <span className="font-semibold text-ink">
+  406: {new Date(student.admissionDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+  407: </span>
+  408: </div>
+  409: <div className="flex justify-between items-center py-2 border-b border-beige">
+  410: <span className="text-mute flex items-center gap-1.5"><CreditCard size={14} /> Aadhar Number</span>
+  411: <span className="font-semibold text-ink font-mono">{student.aadharNo || '—'}</span>
+  412: </div>
+  413: {student.unitId === 'college' && (
+  414: <div className="flex justify-between items-center py-2 border-b border-beige">
+  415: <span className="text-mute flex items-center gap-1.5"><GraduationCap size={14} /> Ex-School Student</span>
+  416: <span className={`font-semibold ${student.isFromSchool ? 'text-brand' : 'text-ink'}`}>
+  417: {student.isFromSchool ? 'Yes (50% Concession)' : 'No'}
+  418: </span>
+  419: </div>
+  420: )}
+  421: </CardContent>
+  422: </Card>
+  423: 
+  424: {/* Parent & Contact Card */}
+  425: <Card className="border-beige bg-paper text-ink shadow-md">
+  426: <CardHeader>
+  427: <CardTitle className="text-sm font-bold uppercase tracking-wider text-mute">
+  428: Parental & Contact Details
+  429: </CardTitle>
+  430: </CardHeader>
+  431: <CardContent className="space-y-4 text-xs">
+  432: <div className="flex justify-between items-center py-2 border-b border-beige">
+  433: <span className="text-mute">Father's Name</span>
+  434: <span className="font-semibold text-ink">{student.fatherName}</span>
+  435: </div>
+  436: <div className="flex justify-between items-center py-2 border-b border-beige">
+  437: <span className="text-mute">Mother's Name</span>
+Line 372: {activeTab === 'overview' && isEditingProfile && (
+  373: <ProfileEditForm
+  374: student={student}
+  375: onCancel={() => setIsEditingProfile(false)}
+  376: onSaved={async () => { setIsEditingProfile(false); await loadStudentDetails(); }}
+  377: />
+  378: )}
+  379: {activeTab === 'overview' && !isEditingProfile && (
+  380: <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  381: {/* Demographics Card */}
+  382: <Card className="border-beige bg-paper text-ink shadow-md">
+  383: <CardHeader>
+  384: <CardTitle className="text-sm font-bold uppercase tracking-wider text-mute">
+  385: Demographic Profile
+  386: </CardTitle>
+  387: </CardHeader>
+  388: <CardContent className="space-y-4 text-xs">
+  389: <div className="flex justify-between items-center py-2 border-b border-beige">
+  390: <span className="text-mute flex items-center gap-1.5"><User size={14} /> Gender</span>
+  391: <span className="font-semibold text-ink capitalize">{student.gender.toLowerCase()}</span>
+  392: </div>
+  393: <div className="flex justify-between items-center py-2 border-b border-beige">
+  394: <span className="text-mute flex items-center gap-1.5"><Calendar size={14} /> Date of Birth</span>
+  395: <span className="font-semibold text-ink">
+  396: {new Date(student.dob).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+  397: </span>
+  398: </div>
+  399: <div className="flex justify-between items-center py-2 border-b border-beige">
+  400: <span className="text-mute flex items-center gap-1.5"><Building2 size={14} /> Category</span>
+  401: <span className="font-semibold text-ink">{student.category}</span>
+  402: </div>
+  403: <div className="flex justify-between items-center py-2 border-b border-beige">
+  404: <span className="text-mute flex items-center gap-1.5"><Calendar size={14} /> Admission Date</span>
+  405: <span className="font-semibold text-ink">
+  406: {new Date(student.admissionDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+  407: </span>
+  408: </div>
+  409: <div className="flex justify-between items-center py-2 border-b border-beige">
+  410: <span className="text-mute flex items-center gap-1.5"><CreditCard size={14} /> Aadhar Number</span>
+  411: <span className="font-semibold text-ink font-mono">{student.aadharNo || '—'}</span>
+  412: </div>
+  413: {student.unitId === 'college' && (
+  414: <div className="flex justify-between items-center py-2 border-b border-beige">
+  415: <span className="text-mute flex items-center gap-1.5"><GraduationCap size={14} /> Ex-School Student</span>
+  416: <span className={`font-semibold ${student.isFromSchool ? 'text-brand' : 'text-ink'}`}>
+  417: {student.isFromSchool ? 'Yes (50% Concession)' : 'No'}
+  418: </span>
+  419: </div>
+  420: )}
+  421: </CardContent>
+  422: </Card>
+  423: 
+  424: {/* Parent & Contact Card */}
+  425: <Card className="border-beige bg-paper text-ink shadow-md">
+  426: <CardHeader>
+  427: <CardTitle className="text-sm font-bold uppercase tracking-wider text-mute">
+  428: Parental & Contact Details
+  429: </CardTitle>
+  430: </CardHeader>
+  431: <CardContent className="space-y-4 text-xs">
+  432: <div className="flex justify-between items-center py-2 border-b border-beige">
+  433: <span className="text-mute">Father's Name</span>
+  434: <span className="font-semibold text-ink">{student.fatherName}</span>
+  435: </div>
+  436: <div className="flex justify-between items-center py-2 border-b border-beige">
+  437: <span className="text-mute">Mother's Name</span>
+  438: <span className="font-semibold text-ink">{student.motherName || '—'}</span>
+  439: </div>
+  440: <div className="flex justify-between items-center py-2 border-b border-beige">
+  441: <span className="text-mute flex items-center gap-1.5"><Phone size={14} /> Contact Phone</span>
+  442: <span className="font-semibold text-ink font-mono">{student.phone || '—'}</span>
+  443: </div>
+  444: <div className="flex justify-between items-center py-2 border-b border-beige">
+  445: <span className="text-mute flex items-center gap-1.5"><Phone size={14} /> Alternative Phone</span>
+  446: <span className="font-semibold text-ink font-mono">{student.fatherPhone || '—'}</span>
+  447: </div>
+  448: <div className="flex flex-col gap-1 py-2">
+  449: <span className="text-mute">Residential Address</span>
+  450: <span className="font-semibold text-label leading-relaxed mt-0.5">
+  451: {student.address || 'Not Provided'}
+  452: </span>
+  453: </div>
+  454: </CardContent>
+  455: </Card>
+  456: 
+  457: {/* Documents & Attachments Card */}
+  458: <Card className="border-beige bg-paper text-ink shadow-md md:col-span-2">
+  459: <CardHeader>
+  460: <CardTitle className="text-sm font-bold uppercase tracking-wider text-mute">
+  461: Uploaded Documents & Attachments
+  462: </CardTitle>
+  463: </CardHeader>
+  464: <CardContent className="space-y-4 text-xs">
+  465: <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  466: <div className="flex flex-col gap-1 p-3 rounded-lg border border-beige bg-cream">
+  467: <span className="text-mute font-semibold">Student Photo Link</span>
+  468: {student.photoUrl ? (
+  469: <div className="flex items-center justify-between gap-2 mt-1">
+  470: <a
+  471: href={toViewableImageUrl(student.photoUrl)}
+Line 379: {activeTab === 'overview' && !isEditingProfile && (
+  380: <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  381: {/* Demographics Card */}
+  382: <Card className="border-beige bg-paper text-ink shadow-md">
+  383: <CardHeader>
+  384: <CardTitle className="text-sm font-bold uppercase tracking-wider text-mute">
+  385: Demographic Profile
+  386: </CardTitle>
+  387: </CardHeader>
+  388: <CardContent className="space-y-4 text-xs">
+  389: <div className="flex justify-between items-center py-2 border-b border-beige">
+  390: <span className="text-mute flex items-center gap-1.5"><User size={14} /> Gender</span>
+  391: <span className="font-semibold text-ink capitalize">{student.gender.toLowerCase()}</span>
+  392: </div>
+  393: <div className="flex justify-between items-center py-2 border-b border-beige">
+  394: <span className="text-mute flex items-center gap-1.5"><Calendar size={14} /> Date of Birth</span>
+  395: <span className="font-semibold text-ink">
+  396: {new Date(student.dob).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+  397: </span>
+  398: </div>
+  399: <div className="flex justify-between items-center py-2 border-b border-beige">
+  400: <span className="text-mute flex items-center gap-1.5"><Building2 size={14} /> Category</span>
+  401: <span className="font-semibold text-ink">{student.category}</span>
+  402: </div>
+  403: <div className="flex justify-between items-center py-2 border-b border-beige">
+  404: <span className="text-mute flex items-center gap-1.5"><Calendar size={14} /> Admission Date</span>
+  405: <span className="font-semibold text-ink">
+  406: {new Date(student.admissionDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+  407: </span>
+  408: </div>
+  409: <div className="flex justify-between items-center py-2 border-b border-beige">
+  410: <span className="text-mute flex items-center gap-1.5"><CreditCard size={14} /> Aadhar Number</span>
+  411: <span className="font-semibold text-ink font-mono">{student.aadharNo || '—'}</span>
+  412: </div>
+  413: {student.unitId === 'college' && (
+  414: <div className="flex justify-between items-center py-2 border-b border-beige">
+  415: <span className="text-mute flex items-center gap-1.5"><GraduationCap size={14} /> Ex-School Student</span>
+  416: <span className={`font-semibold ${student.isFromSchool ? 'text-brand' : 'text-ink'}`}>
+  417: {student.isFromSchool ? 'Yes (50% Concession)' : 'No'}
+  418: </span>
+  419: </div>
+  420: )}
+  421: </CardContent>
+  422: </Card>
+  423: 
+  424: {/* Parent & Contact Card */}
+  425: <Card className="border-beige bg-paper text-ink shadow-md">
+  426: <CardHeader>
+  427: <CardTitle className="text-sm font-bold uppercase tracking-wider text-mute">
+  428: Parental & Contact Details
+  429: </CardTitle>
+  430: </CardHeader>
+  431: <CardContent className="space-y-4 text-xs">
+  432: <div className="flex justify-between items-center py-2 border-b border-beige">
+  433: <span className="text-mute">Father's Name</span>
+  434: <span className="font-semibold text-ink">{student.fatherName}</span>
+  435: </div>
+  436: <div className="flex justify-between items-center py-2 border-b border-beige">
+  437: <span className="text-mute">Mother's Name</span>
+  438: <span className="font-semibold text-ink">{student.motherName || '—'}</span>
+  439: </div>
+  440: <div className="flex justify-between items-center py-2 border-b border-beige">
+  441: <span className="text-mute flex items-center gap-1.5"><Phone size={14} /> Contact Phone</span>
+  442: <span className="font-semibold text-ink font-mono">{student.phone || '—'}</span>
+  443: </div>
+  444: <div className="flex justify-between items-center py-2 border-b border-beige">
+  445: <span className="text-mute flex items-center gap-1.5"><Phone size={14} /> Alternative Phone</span>
+  446: <span className="font-semibold text-ink font-mono">{student.fatherPhone || '—'}</span>
+  447: </div>
+  448: <div className="flex flex-col gap-1 py-2">
+  449: <span className="text-mute">Residential Address</span>
+  450: <span className="font-semibold text-label leading-relaxed mt-0.5">
+  451: {student.address || 'Not Provided'}
+  452: </span>
+  453: </div>
+  454: </CardContent>
+  455: </Card>
+  456: 
+  457: {/* Documents & Attachments Card */}
+  458: <Card className="border-beige bg-paper text-ink shadow-md md:col-span-2">
+  459: <CardHeader>
+  460: <CardTitle className="text-sm font-bold uppercase tracking-wider text-mute">
+  461: Uploaded Documents & Attachments
+  462: </CardTitle>
+  463: </CardHeader>
+  464: <CardContent className="space-y-4 text-xs">
+  465: <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  466: <div className="flex flex-col gap-1 p-3 rounded-lg border border-beige bg-cream">
+  467: <span className="text-mute font-semibold">Student Photo Link</span>
+  468: {student.photoUrl ? (
+  469: <div className="flex items-center justify-between gap-2 mt-1">
+  470: <a
+  471: href={toViewableImageUrl(student.photoUrl)}
+  472: target="_blank"
+  473: rel="noopener noreferrer"
+  474: className="text-brand hover:text-brand font-bold underline truncate inline-flex items-center gap-1"
+  475: >
+  476: View Photo Link ↗
+  477: </a>
+  478: <button

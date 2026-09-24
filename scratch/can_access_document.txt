@@ -1,0 +1,71 @@
+async function canAccessDocument(fileId: string, ctx: AccessContext): Promise<boolean> {
+  if (!fileId) return false;
+
+  // Allow previewing temporary uploaded files that are not yet linked to database records
+  if (fileId.includes('/temp_') || fileId.startsWith('temp_')) {
+    return true;
+  }
+
+  // Director has full visibility across all units.
+  if (ctx.role === 'DIRECTOR') {
+    return await fileBelongsToPortal(fileId);
+  }
+
+  const units = ctx.accessUnits || [];
+  const like = { contains: fileId };
+
+  // 1. Student documents within the user's units.
+  if (units.length > 0) {
+    const student = await prisma.student.findFirst({
+      where: {
+        unitId: { in: units },
+        OR: [{ photoUrl: like }, { aadharDocUrl: like }, { parentAadharDocUrl: like }],
+      },
+      select: { id: true },
+    });
+    if (student) return true;
+
+    // 2. Staff documents within the user's units.
+    const staff = await prisma.staff.findFirst({
+      where: {
+        unitId: { in: units },
+        OR: [{ photoUrl: like }, { aadharDocUrl: like }, { panDocUrl: like }, { otherDocUrl: like }],
+      },
+      select: { id: true },
+    });
+    if (staff) return true;
+  }
+
+  // 3. Transaction receipts in the user's units (or unit-less cross-division).
+  const txn = await prisma.transaction.findFirst({
+    where: {
+      receiptUrl: like,
+      OR: [{ unitId: { in: units } }, { unitId: null }],
+    },
+    select: { id: true },
+  });
+  if (txn) return true;
+
+  // 4. Hostel staff documents (only for users with hostel access).
+  if (units.includes('hostel')) {
+    const hs = await prisma.hostelStaff.findFirst({
+      where: { OR: [{ photoUrl: like }, { aadharDocUrl: like }, { otherDocUrl: like }] },
+      select: { id: true },
+    });
+    if (hs) return true;
+  }
+
+  // 5. The user's own avatar.
+  const ownAvatar = await prisma.user.findFirst({
+    where: { id: ctx.userId, photoUrl: like },
+    select: { id: true },
+  });
+  if (ownAvatar) return true;
+
+  return false;
+}
+
+/**
+ * GET /api/docs/[...key] — Decodes the file key, checks session RBAC,
+ * and redirects to a Cloudflare R2 presigned URL.
+ */

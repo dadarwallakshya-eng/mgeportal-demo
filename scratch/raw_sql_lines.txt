@@ -1,0 +1,107 @@
+
+=========================================
+File: c:\Users\User\Desktop\School_website_antigravity\mge-portal-clean\src\app\api\health\route.ts
+=========================================
+--- Line 6 ---
+   1: import { NextResponse } from 'next/server';
+   2: import prisma from '@/lib/prisma';
+   3: 
+   4: export async function GET() {
+   5:   try {
+-> 6:     const isDbConnected = await prisma.$queryRaw`SELECT 1`
+   7:       .then(() => true)
+   8:       .catch((err) => {
+   9:         return { error: err.message || err };
+   10:       });
+   11: 
+
+
+=========================================
+File: c:\Users\User\Desktop\School_website_antigravity\mge-portal-clean\src\lib\admission.ts
+=========================================
+--- Line 66 ---
+   61: 
+   62:   const year = getSessionYear(admissionDate);
+   63: 
+   64:   // 2. Atomically allocate the next running number for (unit, year).
+   65:   //    Returns next_no AFTER the operation, which is the number we use.
+-> 66:   const rows = await prisma.$queryRaw<{ next_no: number }[]>`
+   67:     INSERT INTO admission_counters (unit_id, year, next_no)
+   68:     VALUES (${unitId}, ${year}, 1)
+   69:     ON CONFLICT (unit_id, year)
+   70:     DO UPDATE SET next_no = admission_counters.next_no + 1
+   71:     RETURNING next_no
+
+
+=========================================
+File: c:\Users\User\Desktop\School_website_antigravity\mge-portal-clean\src\lib\prisma.ts
+=========================================
+--- Line 85 ---
+   80: // production and only auto-heal in local development. Schema changes for prod
+   81: // should go through a deliberate migration step (e.g. `prisma migrate deploy`).
+   82: if (typeof window === 'undefined' && process.env.NODE_ENV !== 'production') {
+   83:   (async () => {
+   84:     try {
+-> 85:       await prisma.$executeRawUnsafe(`
+   86:         ALTER TABLE staff ADD COLUMN IF NOT EXISTS "experience_years" INTEGER;
+   87:         ALTER TABLE staff ADD COLUMN IF NOT EXISTS "qualifications" VARCHAR(500);
+   88:         ALTER TABLE transactions ADD COLUMN IF NOT EXISTS "receipt_url" TEXT;
+   89:         ALTER TABLE staff ADD COLUMN IF NOT EXISTS "staff_no" VARCHAR(100);
+   90:         ALTER TABLE users DROP COLUMN IF EXISTS "password_plain";
+
+--- Line 97 ---
+   92:         ALTER TABLE users ADD COLUMN IF NOT EXISTS "phone" VARCHAR(50);
+   93:         ALTER TABLE users ADD COLUMN IF NOT EXISTS "photo_url" TEXT;
+   94:       `);
+   95: 
+   96:       try {
+-> 97:         await prisma.$executeRawUnsafe(`
+   98:           CREATE UNIQUE INDEX IF NOT EXISTS staff_staff_no_key ON staff(staff_no);
+   99:         `);
+   100:       } catch (idxErr) {
+   101:         // Safe to ignore if already exists
+   102:       }
+
+--- Line 104 ---
+   99:         `);
+   100:       } catch (idxErr) {
+   101:         // Safe to ignore if already exists
+   102:       }
+   103: 
+-> 104:       await prisma.$executeRawUnsafe(`
+   105:         CREATE TABLE IF NOT EXISTS staff_counters (
+   106:           staff_type VARCHAR(50) NOT NULL,
+   107:           year INTEGER NOT NULL,
+   108:           next_no INTEGER NOT NULL DEFAULT 1,
+   109:           PRIMARY KEY (staff_type, year)
+
+--- Line 129 ---
+   124:           
+   125:           const joinDate = new Date(s.joiningDate);
+   126:           const y = joinDate.getUTCFullYear();
+   127:           const year = joinDate.getUTCMonth() >= 3 ? y : y - 1;
+   128: 
+-> 129:           const rows = await prisma.$queryRawUnsafe<{ next_no: number }[]>(`
+   130:             INSERT INTO staff_counters (staff_type, year, next_no)
+   131:             VALUES ('${s.staffType}', ${year}, 1)
+   132:             ON CONFLICT (staff_type, year)
+   133:             DO UPDATE SET next_no = staff_counters.next_no + 1
+   134:             RETURNING next_no
+
+
+=========================================
+File: c:\Users\User\Desktop\School_website_antigravity\mge-portal-clean\src\lib\staffId.ts
+=========================================
+--- Line 27 ---
+   22: ): Promise<string> {
+   23:   const prefix = staffType === 'TEACHER' ? 'TEA' : staffType === 'DRIVER' ? 'DRI' : 'STF';
+   24:   const year = getSessionYear(joiningDate);
+   25: 
+   26:   // Increment counter atomically
+-> 27:   const rows = await prisma.$queryRaw<{ next_no: number }[]>`
+   28:     INSERT INTO staff_counters (staff_type, year, next_no)
+   29:     VALUES (${staffType}, ${year}, 1)
+   30:     ON CONFLICT (staff_type, year)
+   31:     DO UPDATE SET next_no = staff_counters.next_no + 1
+   32:     RETURNING next_no
+

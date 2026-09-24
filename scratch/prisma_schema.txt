@@ -1,0 +1,789 @@
+// ─────────────────────────────────────────────────────────────
+// MGE School Portal — Prisma Schema
+// Database: Supabase (PostgreSQL)
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════
+
+enum Role {
+  DIRECTOR
+  PRINCIPAL
+  DATA_ENTRY
+  DEPARTMENT_HEAD
+}
+
+enum StaffType {
+  TEACHER
+  OTHER_STAFF
+  DRIVER
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum StaffStatus {
+  ACTIVE
+  RESIGNED
+  SUSPENDED
+}
+
+enum StudentStatus {
+  ACTIVE
+  GRADUATED
+  WITHDRAWN
+}
+
+enum TransportMode {
+  OWN_VEHICLE
+  BUS_SERVICE
+}
+
+// ── Simple income / expense money system (replaces double-entry) ──
+enum TxnDirection {
+  INCOME
+  EXPENSE
+}
+
+enum TxnCategory {
+  FEE            // student academic fee collection (income)
+  HOSTEL_FEE     // hostel fee collection (income)
+  OTHER_INCOME   // any other income
+  SALARY         // staff salary payout (expense)
+  HOSTEL_SALARY  // hostel staff salary (expense)
+  MESS           // hostel mess spend (expense)
+  LAUNDRY        // hostel laundry spend (expense)
+  DAILY_USE      // pocket money given to a hostel student (expense)
+  TRANSPORT      // transport/fuel spend (expense)
+  OTHER_EXPENSE  // any other expense
+}
+
+enum Category {
+  GENERAL
+  OBC
+  SC
+  ST
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum PaymentMode {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  UPI
+}
+
+enum PaymentStatus {
+  DRAFT
+  PROCESSED
+  PAID
+}
+
+enum FeeStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum LegType {
+  DEBIT
+  CREDIT
+}
+
+enum BusStatus {
+  ACTIVE
+  MAINTENANCE
+}
+
+enum RoomType {
+  AC
+  NON_AC
+  DELUXE
+}
+
+enum RoomStatus {
+  AVAILABLE
+  FULL
+  UNDER_REPAIR
+}
+
+enum AllocationStatus {
+  ACTIVE
+  TERMINATED
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 1. UNIT — Top-level organisational unit (Hindi, English, etc.)
+// ═══════════════════════════════════════════════════════════════
+
+model Unit {
+  id   String @id // short codes: 'hindi', 'english', 'college', etc.
+  name String
+
+  /// Prefix for auto-generated student admission IDs (e.g. 'MES' for english).
+  /// NULL for non-academic units (hostel, transport) that don't admit students.
+  admissionPrefix String? @map("admission_prefix")
+
+  // Relations
+  students           Student[]
+  staff              Staff[]
+  feeStructures      FeeStructure[]
+  ledgerAccounts     LedgerAccount[]
+  budgets            Budget[]
+  transactions       Transaction[]
+  admissionCounters  AdmissionCounter[]
+
+  @@map("units")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 2. USER — Portal login accounts
+// ═══════════════════════════════════════════════════════════════
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  username      String   @unique
+  passwordHash  String   @map("password_hash")
+  name          String
+  role          Role
+  accessUnits   String[] @map("access_units")
+  isActive      Boolean  @default(true) @map("is_active")
+  phone         String?  @map("phone")
+  photoUrl      String?  @map("photo_url")
+  totpSecret    String?  @map("totp_secret")
+  isTotpEnabled Boolean  @default(false) @map("is_totp_enabled")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  journalEntries JournalEntry[]
+
+  @@map("users")
+}
+
+model GoogleWhitelist {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("google_whitelist")
+}
+
+model SessionBlacklist {
+  id        String   @id @default(uuid()) @db.Uuid
+  jti       String   @unique
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("session_blacklist")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("system_settings")
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════
+// 3. STUDENT
+// ═══════════════════════════════════════════════════════════════
+
+model Student {
+  id            String        @id @default(uuid()) @db.Uuid
+  unitId        String        @map("unit_id")
+  /// Permanent, globally-unique admission ID (e.g. MES2026-00001). Auto-generated
+  /// on registration from the unit's prefix + session-start year + per-unit counter.
+  /// Replaces the old per-year-changing roll number. Use this for ID cards and lookups.
+  admissionNo   String        @unique @map("admission_no")
+  className     String        @map("class")
+  section       String
+  name          String
+  nameHindi     String?       @map("name_hindi")
+  gender        Gender
+  dob           DateTime      @db.Date
+  fatherName    String        @map("father_name")
+  motherName    String?       @map("mother_name")
+  phone         String?
+  fatherPhone   String?       @map("father_phone")
+  address       String?
+  aadharNo          String?        @map("aadhar_no")
+  category          Category       @default(GENERAL)
+  photoUrl          String?        @map("photo_url")
+  aadharDocUrl      String?        @map("aadhar_doc_url")
+  parentAadharDocUrl String?       @map("parent_aadhar_doc_url")
+  admissionDate     DateTime       @map("admission_date") @db.Date
+  status            StudentStatus  @default(ACTIVE)
+  /// Overall fee discount in percent (0-100). Applied to every fee allocation at read time.
+  /// Server enforces role caps when written: PRINCIPAL ≤ 10, DIRECTOR ≤ 100.
+  discountPercent   Decimal        @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  isFromSchool      Boolean        @default(false) @map("is_from_school")
+  transportMode     TransportMode  @default(OWN_VEHICLE) @map("transport_mode")
+  busStationId      String?        @map("bus_station_id") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  unit              Unit               @relation(fields: [unitId], references: [id])
+  busStation        BusStation?        @relation(fields: [busStationId], references: [id])
+  feeAllocations    FeeAllocation[]
+  feePayments       FeePayment[]
+  concessions       StudentConcession[]
+  hostelAllocations HostelAllocation[]
+  hostelResident    HostelResident?
+  transactions      Transaction[]
+
+  @@index([unitId, className])
+  @@index([unitId, status])
+  @@map("students")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 4. FEE STRUCTURE — Per class, per unit, per academic year
+// ═══════════════════════════════════════════════════════════════
+
+model FeeStructure {
+  id           String @id @default(uuid()) @db.Uuid
+  name         String
+  unitId       String @map("unit_id")
+  className    String @map("class")
+  academicYear String @map("academic_year")
+
+  // Relations
+  unit       Unit           @relation(fields: [unitId], references: [id])
+  components FeeComponent[]
+
+  @@unique([unitId, className, academicYear])
+  @@map("fee_structures")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 5. FEE COMPONENT — Individual line items within a fee structure
+// ═══════════════════════════════════════════════════════════════
+
+model FeeComponent {
+  id             String  @id @default(uuid()) @db.Uuid
+  feeStructureId String  @map("fee_structure_id") @db.Uuid
+  name           String  // Tuition, Admission, Exam, Transport, etc.
+  amount         Decimal @db.Decimal(19, 4)
+
+  // Relations
+  feeStructure   FeeStructure    @relation(fields: [feeStructureId], references: [id])
+  feeAllocations FeeAllocation[]
+
+  @@map("fee_components")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 6. STUDENT CONCESSION — Per-student discounts on fee components
+// ═══════════════════════════════════════════════════════════════
+
+model StudentConcession {
+  id               String       @id @default(uuid()) @db.Uuid
+  studentId        String       @map("student_id") @db.Uuid
+  /// Fee component this concession applies to (e.g. "Tuition Fee", "Transport Fee").
+  /// Matches FeeComponent.name on the student's allocations.
+  feeComponentName String       @map("fee_component_name")
+  discountType     DiscountType @map("discount_type")
+  /// For PERCENTAGE: 0-100. For FIXED_AMOUNT: rupees.
+  value            Decimal      @db.Decimal(19, 4)
+  /// Audit columns — who granted the discount, when, why, and at what role.
+  reason           String?
+  setBy            String?      @map("set_by") @db.Uuid
+  setByRole        String?      @map("set_by_role")
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, feeComponentName], map: "student_concessions_student_component_key")
+  @@map("student_concessions")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 7. FEE ALLOCATION — What a student owes for each component
+// ═══════════════════════════════════════════════════════════════
+
+model FeeAllocation {
+  id             String    @id @default(uuid()) @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  feeComponentId String    @map("fee_component_id") @db.Uuid
+  amountDue      Decimal   @map("amount_due") @db.Decimal(19, 4)
+  amountPaid     Decimal   @default(0) @map("amount_paid") @db.Decimal(19, 4)
+  dueDate        DateTime  @map("due_date") @db.Date
+  status         FeeStatus @default(UNPAID)
+
+  // Relations
+  student        Student            @relation(fields: [studentId], references: [id])
+  feeComponent   FeeComponent       @relation(fields: [feeComponentId], references: [id])
+  paymentDetails FeePaymentDetail[]
+
+  @@index([studentId, status])
+  @@map("fee_allocations")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 8. FEE PAYMENT — A receipt for money collected from a student
+// ═══════════════════════════════════════════════════════════════
+
+model FeePayment {
+  id             String      @id @default(uuid()) @db.Uuid
+  studentId      String      @map("student_id") @db.Uuid
+  receiptNo      String      @unique @map("receipt_no")
+  paymentDate    DateTime    @map("payment_date") @db.Date
+  paymentMode    PaymentMode @map("payment_mode")
+  totalAmount    Decimal     @map("total_amount") @db.Decimal(19, 4)
+  journalEntryId String?     @map("journal_entry_id") @db.Uuid
+
+  /// Soft-reversal: when set, this receipt has been voided. The row is kept so
+  /// the audit trail stays intact; a counter-transaction is posted in the ledger.
+  reversedAt     DateTime? @map("reversed_at") @db.Timestamptz
+  reversedBy     String?   @map("reversed_by") @db.Uuid
+  reversalReason String?   @map("reversal_reason")
+
+  // Relations
+  student      Student            @relation(fields: [studentId], references: [id])
+  journalEntry JournalEntry?      @relation(fields: [journalEntryId], references: [id])
+  details      FeePaymentDetail[]
+
+  @@index([studentId])
+  @@map("fee_payments")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 9. FEE PAYMENT DETAIL — Breakdown of a payment across allocations
+// ═══════════════════════════════════════════════════════════════
+
+model FeePaymentDetail {
+  id              String  @id @default(uuid()) @db.Uuid
+  feePaymentId    String  @map("fee_payment_id") @db.Uuid
+  feeAllocationId String  @map("fee_allocation_id") @db.Uuid
+  amountApplied   Decimal @map("amount_applied") @db.Decimal(19, 4)
+
+  // Relations
+  feePayment    FeePayment    @relation(fields: [feePaymentId], references: [id])
+  feeAllocation FeeAllocation @relation(fields: [feeAllocationId], references: [id])
+
+  @@map("fee_payment_details")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 10. STAFF — Teachers, drivers, and other personnel
+// ═══════════════════════════════════════════════════════════════
+
+model Staff {
+  id                String         @id @default(uuid()) @db.Uuid
+  staffNo           String?        @unique @map("staff_no")
+  unitId            String         @map("unit_id")
+  staffType         StaffType      @map("staff_type")
+  name              String
+  fatherName        String?        @map("father_name")
+  roleOrDesignation String?        @map("role_or_designation")
+  department        String?
+  subject           String?
+  phone             String?
+  email             String?
+  dob               DateTime?      @db.Date
+  joiningDate       DateTime       @map("joining_date") @db.Date
+  employmentType    EmploymentType @default(FULL_TIME) @map("employment_type")
+  monthlyBaseSalary Decimal        @map("monthly_base_salary") @db.Decimal(19, 4)
+  bankAccountNo     String?        @map("bank_account_no")
+  aadharNo          String?        @map("aadhar_no")
+  panNo             String?        @map("pan_no")
+  photoUrl          String?        @map("photo_url")
+  aadharDocUrl      String?        @map("aadhar_doc_url")
+  panDocUrl         String?        @map("pan_doc_url")
+  otherDocUrl       String?        @map("other_doc_url")
+  experienceYears   Int?           @map("experience_years")
+  qualifications    String?        @map("qualifications")
+  licenseNo         String?        @map("license_no")
+  transportMode     String?        @map("transport_mode")
+  status            StaffStatus    @default(ACTIVE)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  unit        Unit          @relation(fields: [unitId], references: [id])
+  salarySlips SalarySlip[]
+  buses       Bus[]
+  transactions Transaction[]
+
+  @@index([unitId, staffType])
+  @@map("staff")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 11. SALARY SLIP — Monthly payroll record for a staff member
+// ═══════════════════════════════════════════════════════════════
+
+model SalarySlip {
+  id              String        @id @default(uuid()) @db.Uuid
+  staffId         String        @map("staff_id") @db.Uuid
+  month           String
+  year            Int
+  baseSalary      Decimal       @map("base_salary") @db.Decimal(19, 4)
+  allowances      Decimal       @default(0) @db.Decimal(19, 4)
+  pfDeduction     Decimal       @default(0) @map("pf_deduction") @db.Decimal(19, 4)
+  tdsDeduction    Decimal       @default(0) @map("tds_deduction") @db.Decimal(19, 4)
+  otherDeductions Decimal       @default(0) @map("other_deductions") @db.Decimal(19, 4)
+  netSalary       Decimal       @map("net_salary") @db.Decimal(19, 4)
+  paymentStatus   PaymentStatus @default(DRAFT) @map("payment_status")
+  paidDate        DateTime?     @map("paid_date") @db.Date
+  paymentMode     PaymentMode?  @map("payment_mode")
+  journalEntryId  String?       @map("journal_entry_id") @db.Uuid
+
+  // Relations
+  staff        Staff         @relation(fields: [staffId], references: [id])
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([staffId, month, year])
+  @@map("salary_slips")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 12. LEDGER ACCOUNT — Chart of Accounts entry
+// ═══════════════════════════════════════════════════════════════
+
+model LedgerAccount {
+  id             String      @id @default(uuid()) @db.Uuid
+  accountCode    String      @unique @map("account_code")
+  name           String
+  type           AccountType
+  unitId         String      @map("unit_id")
+  currentBalance Decimal     @default(0) @map("current_balance") @db.Decimal(19, 4)
+
+  // Relations
+  unit            Unit             @relation(fields: [unitId], references: [id])
+  transactionLegs TransactionLeg[]
+  budgets         Budget[]
+
+  @@map("ledger_accounts")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 13. JOURNAL ENTRY — Double-entry accounting header
+// ═══════════════════════════════════════════════════════════════
+
+model JournalEntry {
+  id              String   @id @default(uuid()) @db.Uuid
+  transactionDate DateTime @map("transaction_date") @db.Date
+  description     String?
+  voucherNo       String   @unique @map("voucher_no")
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  creator         User             @relation(fields: [createdBy], references: [id])
+  transactionLegs TransactionLeg[]
+  feePayments     FeePayment[]
+  salarySlips     SalarySlip[]
+
+  @@index([transactionDate])
+  @@map("journal_entries")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 14. TRANSACTION LEG — Debit or credit line within a journal entry
+// ═══════════════════════════════════════════════════════════════
+
+model TransactionLeg {
+  id              String  @id @default(uuid()) @db.Uuid
+  journalEntryId  String  @map("journal_entry_id") @db.Uuid
+  ledgerAccountId String  @map("ledger_account_id") @db.Uuid
+  type            LegType
+  amount          Decimal @db.Decimal(19, 4)
+
+  // Relations
+  journalEntry  JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  ledgerAccount LedgerAccount @relation(fields: [ledgerAccountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([ledgerAccountId])
+  @@map("transaction_legs")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 15. BUDGET — Annual budget allocation per ledger account per unit
+// ═══════════════════════════════════════════════════════════════
+
+model Budget {
+  id               String  @id @default(uuid()) @db.Uuid
+  unitId           String  @map("unit_id")
+  ledgerAccountId  String  @map("ledger_account_id") @db.Uuid
+  annualAllocation Decimal @map("annual_allocation") @db.Decimal(19, 4)
+  currentSpending  Decimal @default(0) @map("current_spending") @db.Decimal(19, 4)
+  fiscalYear       String  @map("fiscal_year")
+
+  // Relations
+  unit          Unit          @relation(fields: [unitId], references: [id])
+  ledgerAccount LedgerAccount @relation(fields: [ledgerAccountId], references: [id])
+
+  @@unique([unitId, ledgerAccountId, fiscalYear])
+  @@map("budgets")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 16. BUS — Transport fleet
+// ═══════════════════════════════════════════════════════════════
+
+model Bus {
+  id              String    @id @default(uuid()) @db.Uuid
+  busNo           String    @unique @map("bus_no")
+  route           String
+  driverId        String    @map("driver_id") @db.Uuid
+  seatingCapacity Int       @map("seating_capacity")
+  status          BusStatus @default(ACTIVE)
+
+  // Relations
+  driver Staff @relation(fields: [driverId], references: [id])
+
+  @@map("buses")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 16b. BUS STATION — Pickup stops with monthly & annual fares
+// ═══════════════════════════════════════════════════════════════
+
+model BusStation {
+  id        String  @id @default(uuid()) @db.Uuid
+  stationNo Int     @unique @map("station_no")
+  name      String
+  perMonth  Decimal @map("per_month") @db.Decimal(19, 4)
+  perYear   Decimal @map("per_year") @db.Decimal(19, 4)
+  isActive  Boolean @default(true) @map("is_active")
+
+  // Relations
+  students Student[]
+
+  @@map("bus_stations")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 17. HOSTEL ROOM — Room inventory
+// ═══════════════════════════════════════════════════════════════
+
+model HostelRoom {
+  id            String     @id @default(uuid()) @db.Uuid
+  roomNo        String     @unique @map("room_no")
+  floor         String
+  capacity      Int
+  occupiedCount Int        @default(0) @map("occupied_count")
+  monthlyRent   Decimal    @map("monthly_rent") @db.Decimal(19, 4)
+  type          RoomType
+  status        RoomStatus @default(AVAILABLE)
+
+  // Relations
+  allocations HostelAllocation[]
+  residents   HostelResident[]
+
+  @@map("hostel_rooms")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 18. HOSTEL ALLOCATION — Student ↔ Room assignment
+// ═══════════════════════════════════════════════════════════════
+
+model HostelAllocation {
+  id                String           @id @default(uuid()) @db.Uuid
+  studentId         String           @map("student_id") @db.Uuid
+  roomId            String           @map("room_id") @db.Uuid
+  checkInDate       DateTime         @map("check_in_date") @db.Date
+  checkOutDate      DateTime?        @map("check_out_date") @db.Date
+  monthlyFeeOverride Decimal?        @map("monthly_fee_override") @db.Decimal(19, 4)
+  status            AllocationStatus @default(ACTIVE)
+
+  // Relations
+  student Student    @relation(fields: [studentId], references: [id])
+  room    HostelRoom @relation(fields: [roomId], references: [id])
+
+  @@index([studentId])
+  @@index([roomId])
+  @@map("hostel_allocations")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 19. TRANSACTION — Simple income / expense money entry
+//     The single source of truth for all cash in/out across the app.
+//     Net balance is always computed (never stored) as Σincome − Σexpense.
+// ═══════════════════════════════════════════════════════════════
+
+model Transaction {
+  id          String       @id @default(uuid()) @db.Uuid
+  direction   TxnDirection
+  category    TxnCategory
+  amount      Decimal      @db.Decimal(19, 4)
+  date        DateTime     @db.Date
+  description String?
+  unitId      String?      @map("unit_id")
+  studentId   String?      @map("student_id") @db.Uuid
+  staffId     String?      @map("staff_id") @db.Uuid
+  hostelStaffId String?    @map("hostel_staff_id") @db.Uuid
+  paymentMode PaymentMode? @map("payment_mode")
+  referenceNo String?      @map("reference_no")
+  periodMonth String?      @map("period_month")
+  periodYear  Int?         @map("period_year")
+  source      String?      // 'FEES' | 'PAYROLL' | 'HOSTEL' | 'MANUAL'
+  receiptUrl  String?      @map("receipt_url")
+  createdBy   String       @map("created_by") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations (loose — IDs may also reference hostel entities added later)
+  unit    Unit?    @relation(fields: [unitId], references: [id])
+  student Student? @relation(fields: [studentId], references: [id])
+  staff   Staff?   @relation(fields: [staffId], references: [id])
+
+  @@index([direction])
+  @@index([unitId])
+  @@index([studentId])
+  @@index([hostelStaffId])
+  @@index([date])
+  @@map("transactions")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 20. HOSTEL RESIDENT — A boy admitted to the (single, group-wide) hostel
+//     Annual fee comes from his class; manager may discount up to 100%.
+//     Fee payments & daily-use money are recorded as Transactions.
+// ═══════════════════════════════════════════════════════════════
+
+model HostelResident {
+  id            String           @id @default(uuid()) @db.Uuid
+  studentId     String           @unique @map("student_id") @db.Uuid
+  roomId        String?          @map("room_id") @db.Uuid
+  annualFee     Decimal          @map("annual_fee") @db.Decimal(19, 4)
+  discountType  DiscountType?    @map("discount_type")
+  discountValue Decimal          @default(0) @map("discount_value") @db.Decimal(19, 4)
+  checkInDate   DateTime         @map("check_in_date") @db.Date
+  checkOutDate  DateTime?        @map("check_out_date") @db.Date
+  status        AllocationStatus @default(ACTIVE)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  student Student     @relation(fields: [studentId], references: [id])
+  room    HostelRoom? @relation(fields: [roomId], references: [id])
+
+  @@index([status])
+  @@map("hostel_residents")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 21. HOSTEL STAFF — Warden, cook, mess workers, cleaners.
+//     Simple monthly salary (no TDS/PF). Salary payouts are Transactions.
+// ═══════════════════════════════════════════════════════════════
+
+model HostelStaff {
+  id            String      @id @default(uuid()) @db.Uuid
+  name          String
+  role          String      // Warden, Cook, Mess Worker, Cleaner, etc.
+  fatherName    String?     @map("father_name")
+  dob           DateTime?   @db.Date
+  phone         String?
+  address       String?
+  monthlySalary Decimal     @map("monthly_salary") @db.Decimal(19, 4)
+  joinDate      DateTime    @map("join_date") @db.Date
+  status        StaffStatus @default(ACTIVE)
+  aadharNo      String?     @map("aadhar_no")
+  panNo         String?     @map("pan_no")
+  bankAccountNo String?     @map("bank_account_no")
+  photoUrl      String?     @map("photo_url")
+  aadharDocUrl  String?     @map("aadhar_doc_url")
+  otherDocUrl   String?     @map("other_doc_url")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([status])
+  @@map("hostel_staff")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 22. ADMISSION COUNTER — Atomic per-unit per-session-year running number.
+//     Allocated by INSERT … ON CONFLICT DO UPDATE next_no = next_no + 1 RETURNING next_no.
+//     The returned next_no IS the number to use; pad to 5 digits and prefix
+//     with the unit's admissionPrefix and the session year to build the final
+//     admission ID (e.g. MES + 2026 + "-" + "00001" = MES2026-00001).
+// ═══════════════════════════════════════════════════════════════
+
+model AdmissionCounter {
+  unitId String  @map("unit_id")
+  /// Academic-session start year (e.g. 2026 means session 2026-27, April 2026 – March 2027).
+  year   Int
+  nextNo Int     @default(1) @map("next_no")
+
+  unit Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([unitId, year])
+  @@map("admission_counters")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 23. STUDENT DISCOUNT LOG — Audit trail of who changed the fee discount.
+//     Director can see the full history of every concession granted, including
+//     who approved it, when, and the reason.
+// ═══════════════════════════════════════════════════════════════
+
+model StudentDiscountLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  /// The fee component this change applied to, or NULL when an "All Components" bulk apply.
+  componentName String?  @map("component_name")
+  prevPct       Decimal  @map("prev_pct") @db.Decimal(5, 2)
+  newPct        Decimal  @map("new_pct") @db.Decimal(5, 2)
+  reason        String?
+  setBy         String   @map("set_by") @db.Uuid
+  setByRole     String   @map("set_by_role")
+  /// true when this entry was created by /discount/reverse. The reverse
+  /// endpoint skips these when searching for the "prior set action" to undo,
+  /// otherwise chained reverses would just toggle between two values.
+  isReversal    Boolean  @default(false) @map("is_reversal")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([studentId])
+  @@index([studentId, componentName, isReversal, createdAt(sort: Desc)], map: "idx_disc_log_student_kind")
+  @@map("student_discount_log")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 24. STAFF COUNTER — Per-year sequential counter for staff numbering
+// ═══════════════════════════════════════════════════════════════
+
+model StaffCounter {
+  staffType String @map("staff_type") @db.VarChar(50)
+  year      Int
+  nextNo    Int    @default(1) @map("next_no")
+
+  @@id([staffType, year])
+  @@map("staff_counters")
+}
