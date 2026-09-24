@@ -10,4 +10,5 @@ export {
   uploadFileToStorage as uploadFileToR2,
   deleteFileFromStorage as deleteFileFromR2,
   renameFileInR2,
+  getPresignedUploadUrl,
 } from './storage';

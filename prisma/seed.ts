@@ -303,8 +303,8 @@ async function main() {
 
   for (const s of studentData) {
     await prisma.student.upsert({
-      where: { id: s.id },
-      update: {},
+      where: { admissionNo: s.admissionNo },
+      update: s,
       create: s,
     });
   }

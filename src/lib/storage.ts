@@ -5,6 +5,7 @@
  */
 
 import { S3Client, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const supabaseProjectRef = process.env.NEXT_PUBLIC_SUPABASE_PROJECT_REF || process.env.SUPABASE_PROJECT_REF || '';
 const rawEndpoint = process.env.CLOUDFLARE_R2_ENDPOINT || process.env.SUPABASE_STORAGE_ENDPOINT;
@@ -95,3 +96,32 @@ export const deleteFileFromR2 = deleteFileFromStorage;
 export const renameFileInR2 = async (oldKey: string, newFileName: string): Promise<string> => {
   return oldKey;
 };
+
+/**
+ * Generates a presigned PUT URL for direct client uploads to storage.
+ */
+export async function getPresignedUploadUrl(
+  fileName: string,
+  mimeType: string,
+  pathParts: string[]
+): Promise<{ uploadUrl: string; fileKey: string }> {
+  const fileKey = [...pathParts, `${Date.now()}-${fileName}`].join('/');
+
+  try {
+    const command = new PutObjectCommand({
+      Bucket: STORAGE_BUCKET_NAME,
+      Key: fileKey,
+      ContentType: mimeType,
+    });
+
+    const uploadUrl = await getSignedUrl(storageClient, command, { expiresIn: 3600 });
+    return { uploadUrl, fileKey };
+  } catch (err) {
+    console.warn('[STORAGE_PRESIGN_WARN] Failed generating presigned URL, returning fallback path:', err);
+    return {
+      uploadUrl: `/api/upload/direct-fallback?key=${encodeURIComponent(fileKey)}`,
+      fileKey,
+    };
+  }
+}
+
