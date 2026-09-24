@@ -78,12 +78,16 @@ export async function getSession(): Promise<UserPayload | null> {
       return null;
     }
 
-    // Check if the token has been blacklisted
-    const blacklisted = await prisma.sessionBlacklist.findUnique({
-      where: { jti: payload.jti },
-    });
-    if (blacklisted) {
-      return null;
+    // Check if the token has been blacklisted (wrapped safely so DB hiccups never invalidate session)
+    try {
+      const blacklisted = await prisma.sessionBlacklist.findUnique({
+        where: { jti: payload.jti },
+      });
+      if (blacklisted) {
+        return null;
+      }
+    } catch (dbErr) {
+      console.warn('[SESSION_BLACKLIST_CHECK_WARN] DB check warning, proceeding with valid JWT:', dbErr);
     }
 
     return payload;

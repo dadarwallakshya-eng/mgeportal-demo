@@ -17,14 +17,19 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  // Fetch latest photoUrl and phone from database
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: {
-      phone: true,
-      photoUrl: true,
-    },
-  });
+  // Fetch latest photoUrl and phone from database safely
+  let dbUser = null;
+  try {
+    dbUser = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        phone: true,
+        photoUrl: true,
+      },
+    });
+  } catch (err) {
+    console.warn('[DASHBOARD_LAYOUT_USER_WARN] DB lookup warning, proceeding with session claims:', err);
+  }
 
   // Cast UserPayload to pass to the client component
   const user = {
