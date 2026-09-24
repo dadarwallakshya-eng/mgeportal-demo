@@ -162,7 +162,6 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     pathname === '/login' ||
     pathname === '/api/auth/login' ||
     pathname === '/api/auth/demo-login' ||
-    pathname === '/api/auth/me' ||
     pathname === '/api/auth/logout' ||
     pathname === '/api/health' ||
     pathname === '/privacy' ||

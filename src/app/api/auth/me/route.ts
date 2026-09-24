@@ -13,17 +13,29 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/session';
 import prisma from '@/lib/prisma';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const userId = request.headers.get('x-user-id');
-    const username = request.headers.get('x-user-username');
-    const role = request.headers.get('x-user-role');
-    const name = request.headers.get('x-user-name');
-    const accessUnitsRaw = request.headers.get('x-user-access-units');
+    let userId = request.headers.get('x-user-id');
+    let username = request.headers.get('x-user-username');
+    let role = request.headers.get('x-user-role');
+    let name = request.headers.get('x-user-name');
+    let accessUnitsRaw = request.headers.get('x-user-access-units');
 
-    // If middleware didn't inject user headers, the request is unauthenticated.
+    // Fallback: Read directly from cookie session if middleware headers are missing
+    if (!userId || !username || !role || !name) {
+      const session = await getSession();
+      if (session) {
+        userId = session.userId;
+        username = session.username;
+        role = session.role;
+        name = session.name;
+        accessUnitsRaw = JSON.stringify(session.accessUnits || []);
+      }
+    }
+
     if (!userId || !username || !role || !name) {
       return NextResponse.json(
         { error: 'Authentication required', code: 'UNAUTHORIZED' },
