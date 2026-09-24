@@ -24,6 +24,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     let name = request.headers.get('x-user-name');
     let accessUnitsRaw = request.headers.get('x-user-access-units');
 
+    let debugInfo: any = {};
     // Fallback: Read directly from cookie session if middleware headers are missing
     if (!userId || !username || !role || !name) {
       const session = await getSession();
@@ -33,12 +34,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         role = session.role;
         name = session.name;
         accessUnitsRaw = JSON.stringify(session.accessUnits || []);
+      } else {
+        const cookieStore = await cookies();
+        const cookieVal = cookieStore.get('mge-session')?.value;
+        debugInfo = {
+          hasCookie: !!cookieVal,
+          cookieLen: cookieVal ? cookieVal.length : 0,
+          envSecretSet: !!process.env.JWT_SECRET,
+        };
       }
     }
 
     if (!userId || !username || !role || !name) {
       return NextResponse.json(
-        { error: 'Authentication required', code: 'UNAUTHORIZED' },
+        { error: 'Authentication required', code: 'UNAUTHORIZED', debug: debugInfo },
         { status: 401 }
       );
     }
