@@ -74,11 +74,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('[ME] Internal error:', error);
 
     return NextResponse.json(
-      { error: 'An error occurred. Please try again later.', code: 'INTERNAL_ERROR' },
+      { error: error?.message || 'An error occurred. Please try again later.', details: String(error), code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }
