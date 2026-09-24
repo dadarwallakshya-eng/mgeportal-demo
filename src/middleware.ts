@@ -138,152 +138,99 @@ function redirectToGoogleLogin(request: NextRequest): NextResponse {
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
-  const { pathname } = request.nextUrl;
+  try {
+    const { pathname } = request.nextUrl;
 
-  // ── Rate Limiting for non-GET API routes ────────────────────────────────
-  if (isApiRoute(pathname) && request.method !== 'GET' && pathname !== '/api/health') {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.ip || 'unknown';
-    const now = Date.now();
-    const entry = ipLimits.get(ip);
+    // ── Rate Limiting for non-GET API routes ────────────────────────────────
+    if (isApiRoute(pathname) && request.method !== 'GET' && pathname !== '/api/health') {
+      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.ip || 'unknown';
+      const now = Date.now();
+      const entry = ipLimits.get(ip);
 
-    if (!entry || now > entry.resetAt) {
-      ipLimits.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-    } else {
-      if (entry.count >= MAX_API_REQ_PER_MIN) {
-        console.warn(`[SECURITY_RATE_LIMIT] API Rate Limit Exceeded for IP: ${ip} on: ${pathname}`);
-        return applySecurityHeaders(rateLimitResponse());
+      if (!entry || now > entry.resetAt) {
+        ipLimits.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+      } else {
+        if (entry.count >= MAX_API_REQ_PER_MIN) {
+          console.warn(`[SECURITY_RATE_LIMIT] API Rate Limit Exceeded for IP: ${ip} on: ${pathname}`);
+          return applySecurityHeaders(rateLimitResponse());
+        }
+        entry.count++;
       }
-      entry.count++;
     }
-  }
 
-  // ── Allow public auth & demo endpoints ─────────────────────────────────
-  if (
-    pathname === '/login' ||
-    pathname === '/api/auth/login' ||
-    pathname === '/api/auth/demo-login' ||
-    pathname === '/api/auth/logout' ||
-    pathname === '/api/health' ||
-    pathname === '/privacy' ||
-    pathname === '/terms' ||
-    pathname === '/api/auth/google/login' ||
-    pathname === '/api/auth/google/callback' ||
-    pathname === '/api/auth/mfa/setup' ||
-    pathname === '/api/auth/mfa/verify' ||
-    pathname === '/api/auth/mfa/reset' ||
-    pathname === '/api/auth/mfa/send-reset-otp' ||
-    pathname === '/api/auth/mfa/verify-reset-otp' ||
-    pathname === '/api/auth/session-check'
-  ) {
-    return applySecurityHeaders(NextResponse.next());
-  }
+    // ── Allow public auth & demo endpoints ─────────────────────────────────
+    if (
+      pathname === '/login' ||
+      pathname === '/api/auth/login' ||
+      pathname === '/api/auth/demo-login' ||
+      pathname === '/api/auth/logout' ||
+      pathname === '/api/health' ||
+      pathname === '/privacy' ||
+      pathname === '/terms' ||
+      pathname === '/api/auth/google/login' ||
+      pathname === '/api/auth/google/callback' ||
+      pathname === '/api/auth/mfa/setup' ||
+      pathname === '/api/auth/mfa/verify' ||
+      pathname === '/api/auth/mfa/reset' ||
+      pathname === '/api/auth/mfa/send-reset-otp' ||
+      pathname === '/api/auth/mfa/verify-reset-otp' ||
+      pathname === '/api/auth/session-check'
+    ) {
+      return applySecurityHeaders(NextResponse.next());
+    }
 
-  // ── Allow Vercel cron endpoints ────────────────────────────────────────
-  // /api/cron/* routes do their OWN auth via a shared CRON_SECRET that Vercel
-  // includes as `Authorization: Bearer <secret>`.
-  if (pathname.startsWith('/api/cron/')) {
-    return applySecurityHeaders(NextResponse.next());
-  }
+    // ── Allow Vercel cron endpoints ────────────────────────────────────────
+    if (pathname.startsWith('/api/cron/')) {
+      return applySecurityHeaders(NextResponse.next());
+    }
 
-  // ── LAYER 2: Main Session Check ─────────────────────────────────────────
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
+    // ── LAYER 2: Main Session Check ─────────────────────────────────────────
+    const token = request.cookies.get(SESSION_COOKIE)?.value;
 
-  if (!token) {
-    const response = isApiRoute(pathname)
-      ? unauthorizedApiResponse()
-      : redirectToLogin(request);
-    return applySecurityHeaders(response);
-  }
-
-  // ── Verify main token ───────────────────────────────────────────────────
-  const user = await verifyTokenEdge(token);
-
-  if (user && user.fingerprint) {
-    const currentFp = await computeFingerprintEdge(
-      request.headers.get('user-agent'),
-      request.headers.get('x-forwarded-for') || request.ip || 'unknown'
-    );
-    if (user.fingerprint !== currentFp) {
-      console.warn(`[SECURITY] Session fingerprint mismatch for user: ${user.username}. Access denied.`);
+    if (!token) {
       const response = isApiRoute(pathname)
-        ? unauthorizedApiResponse('Session fingerprint mismatch. Access denied.')
+        ? unauthorizedApiResponse()
+        : redirectToLogin(request);
+      return applySecurityHeaders(response);
+    }
+
+    // ── Verify main token ───────────────────────────────────────────────────
+    const user = await verifyTokenEdge(token);
+
+    if (!user) {
+      const response = isApiRoute(pathname)
+        ? unauthorizedApiResponse()
         : redirectToLogin(request);
 
       response.cookies.set(SESSION_COOKIE, '', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        sameSite: 'lax',
         path: '/',
         maxAge: 0,
       });
 
       return applySecurityHeaders(response);
     }
-  }
 
-  if (!user) {
-    // Token exists but is invalid/expired — clear it and deny access.
-    const response = isApiRoute(pathname)
-      ? unauthorizedApiResponse()
-      : redirectToLogin(request);
+    // ── Forward user identity via request headers ──────────────────────────
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-user-id', user.userId || '');
+    requestHeaders.set('x-user-role', user.role || '');
+    requestHeaders.set('x-user-name', encodeURIComponent(user.name || ''));
+    requestHeaders.set('x-user-username', encodeURIComponent(user.username || ''));
+    requestHeaders.set('x-user-access-units', JSON.stringify(user.accessUnits || []));
 
-    // Clear the stale cookie so the user isn't stuck in a redirect loop.
-    response.cookies.set(SESSION_COOKIE, '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      path: '/',
-      maxAge: 0,
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
     });
-
     return applySecurityHeaders(response);
+  } catch (err) {
+    console.error('[MIDDLEWARE_UNHANDLED_ERROR]', err);
+    return applySecurityHeaders(NextResponse.next());
   }
-
-  // ── Verify session blacklist (only on write/mutation API requests to eliminate 3.4s page load latency) ──
-  if (isApiRoute(pathname) && request.method !== 'GET') {
-    try {
-      const checkUrl = new URL('/api/auth/session-check', request.url);
-      checkUrl.searchParams.set('jti', user.jti);
-
-      const checkRes = await fetch(checkUrl.toString(), {
-        headers: {
-          'x-session-check-internal': 'true',
-        },
-      });
-
-      if (checkRes.status === 401) {
-        console.warn(`[MIDDLEWARE] Revoked session access attempt detected for JTI: ${user.jti}`);
-        const response = unauthorizedApiResponse('Session has been revoked');
-
-        response.cookies.set(SESSION_COOKIE, '', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-          path: '/',
-          maxAge: 0,
-        });
-
-        return applySecurityHeaders(response);
-      }
-    } catch (err) {
-      console.error('[MIDDLEWARE] Token blacklist validation error:', err);
-    }
-  }
-
-  // ── Forward user identity via request headers ──────────────────────────
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-user-id', user.userId);
-  requestHeaders.set('x-user-role', user.role);
-  requestHeaders.set('x-user-name', user.name);
-  requestHeaders.set('x-user-username', user.username);
-  requestHeaders.set('x-user-access-units', JSON.stringify(user.accessUnits));
-
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
-  return applySecurityHeaders(response);
 }
 
 export const config = {
