@@ -160,11 +160,16 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // ── Allow public auth endpoints ────────────────────────────────────────
-  // /api/auth/login and Google OAuth routes must be accessible without any gate or session.
+  // ── Allow public auth & demo endpoints ─────────────────────────────────
   if (
+    pathname === '/login' ||
     pathname === '/api/auth/login' ||
+    pathname === '/api/auth/demo-login' ||
+    pathname === '/api/auth/me' ||
+    pathname === '/api/auth/logout' ||
     pathname === '/api/health' ||
+    pathname === '/privacy' ||
+    pathname === '/terms' ||
     pathname === '/api/auth/google/login' ||
     pathname === '/api/auth/google/callback' ||
     pathname === '/api/auth/mfa/setup' ||
@@ -181,47 +186,6 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   // /api/cron/* routes do their OWN auth via a shared CRON_SECRET that Vercel
   // includes as `Authorization: Bearer <secret>`.
   if (pathname.startsWith('/api/cron/')) {
-    return applySecurityHeaders(NextResponse.next());
-  }
-
-  // ── LAYER 1: Google OAuth Gateway Whitelist Check ───────────────────────
-  const gatewayCookie = request.cookies.get(GATEWAY_COOKIE)?.value;
-  const isGatewayValid = gatewayCookie ? await verifyGatewayTokenEdge(gatewayCookie) : false;
-
-  if (!isGatewayValid) {
-    console.warn(`[MIDDLEWARE] Intercepted unauthorized gateway access to: ${pathname}`);
-    const response = isApiRoute(pathname)
-      ? unauthorizedApiResponse('Google Whitelist Gate authentication required')
-      : redirectToGoogleLogin(request);
-
-    // Save target path for redirecting back after Google Gate verification (page routes only)
-    if (!isApiRoute(pathname)) {
-      response.cookies.set('google_oauth_from', request.nextUrl.pathname + request.nextUrl.search, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 600, // 10 minutes
-      });
-    }
-
-    // If a gateway cookie exists but is invalid, clear it
-    if (gatewayCookie) {
-      response.cookies.set(GATEWAY_COOKIE, '', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 0,
-      });
-    }
-
-    return applySecurityHeaders(response);
-  }
-
-  // If the user has verified their Gmail (passed the gate) and accesses `/login`,
-  // allow it so they can log in with their username/password.
-  if (pathname === '/login') {
     return applySecurityHeaders(NextResponse.next());
   }
 
